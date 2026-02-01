@@ -1,4 +1,4 @@
-const CACHE_NAME = 'daily-report-byAI-v0.1.0';
+const CACHE_NAME = 'daily-report-byAI-v0.1.1';
 const urlsToCache = [
   './',
   './index.html',
@@ -49,3 +49,4 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
