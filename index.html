@@ -50,7 +50,7 @@
 <body>
 
 <header>
-    <h1>AI日報<span style="font-size:0.8em">v0.1.0</span></h1>
+    <h1>AI日報<span style="font-size:0.8em">v0.1.1</span></h1>
     <div class="sub-text">GPSログ自動記録ツール</div>
 </header>
 
@@ -211,15 +211,21 @@
         const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
         if (data.length === 0) return alert("データがありません");
 
-        // CSVヘッダーとデータ (Pythonのpandasで読みやすい形式)
+        // CSVヘッダーとデータ
         let csvContent = "time,lat,lon\n";
         data.forEach(row => {
             csvContent += `${row.time},${row.lat},${row.lon}\n`;
         });
 
-        // ファイル名生成
+        // ファイル名生成 (変更箇所: AI日報-yyyyMMdd-HHmm.csv)
         const now = new Date();
-        const fileName = `AI_Nippo_${formatTimestamp(now).replace(/[: ]/g, '')}.csv`;
+        const y = now.getFullYear();
+        const m = ('0' + (now.getMonth() + 1)).slice(-2);
+        const d = ('0' + now.getDate()).slice(-2);
+        const H = ('0' + now.getHours()).slice(-2);
+        const M = ('0' + now.getMinutes()).slice(-2);
+
+        const fileName = `AI日報-${y}${m}${d}-${H}${M}.csv`;
 
         // ダウンロード処理
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -291,4 +297,5 @@
 
 </body>
 </html>
+
 
