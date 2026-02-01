@@ -1,4 +1,4 @@
-const CACHE_NAME = 'road-survey-v1.2.0';
+const CACHE_NAME = 'daily-report-byAI-v0.1.0';
 const urlsToCache = [
   './',
   './index.html',
@@ -10,7 +10,6 @@ const urlsToCache = [
   'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'
 ];
 
-// インストール時にキャッシュ
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -21,7 +20,6 @@ self.addEventListener('install', event => {
   self.skipWaiting();
 });
 
-// 古いキャッシュの削除
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(cacheNames => {
@@ -37,29 +35,17 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// リクエスト処理（キャッシュ優先、なければネットワーク）
 self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
+        return response || fetch(event.request);
       })
   );
 });
 
-// 待機中のSWをスキップするメッセージ処理
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-
 });
-
-
-
-
-
-
