@@ -10,17 +10,15 @@
         body { font-family: sans-serif; margin: 0; background-color: #f0f4f8; color: #333; -webkit-tap-highlight-color: transparent; }
         .container { max-width: 600px; margin: auto; padding: 15px; }
         
-        /* ヘッダー周り：林業っぽい緑に */
         header { background: #2E7D32; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         h1 { margin: 0; font-size: 1.2rem; }
         .sub-text { font-size: 0.8rem; opacity: 0.9; margin-top: 5px; }
 
-        /* ステータス表示 */
         .status-box { background: white; padding: 15px; border-radius: 12px; margin-top: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); text-align: center; }
         .status-text { font-size: 1.2rem; font-weight: bold; color: #666; }
         .coord-text { font-family: monospace; font-size: 0.9rem; color: #555; margin-top: 5px; }
+        .wake-status { font-size: 0.8rem; color: #e65100; margin-top: 5px; font-weight: bold; display: none; }
         
-        /* メインボタン */
         .btn-main { width: 100%; padding: 20px; border: none; border-radius: 50px; font-weight: bold; font-size: 1.2rem; margin-top: 20px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
         .btn-main:active { transform: scale(0.98); }
         
@@ -33,30 +31,28 @@
             100% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0); }
         }
 
-        /* サブ機能エリア */
         .tools-area { margin-top: 30px; display: grid; gap: 10px; }
         .btn-tool { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; font-size: 0.9rem; }
-        .btn-csv { background: #0277BD; } /* 青 */
-        .btn-map { background: #F9A825; color: #333; } /* 黄色 */
+        .btn-csv { background: #0277BD; } 
+        .btn-map { background: #F9A825; color: #333; } 
         .btn-clear { background: white; border: 1px solid #d32f2f; color: #d32f2f; margin-top: 20px; }
 
-        /* 地図 */
         #map { height: 300px; width: 100%; border-radius: 12px; margin-top: 15px; display: none; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         
-        /* データ数表示 */
         .count-badge { background: #eee; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem; color: #555; }
     </style>
 </head>
 <body>
 
 <header>
-    <h1>AI日報<span style="font-size:0.8em">v0.1.1</span></h1>
-    <div class="sub-text">GPSログ自動記録ツール</div>
+    <h1>AI日報 <span style="font-size:0.8em">v0.2.0</span></h1>
+    <div class="sub-text">GPSログ自動記録</div>
 </header>
 
 <div class="container">
     <div class="status-box">
         <div id="status" class="status-text">待機中</div>
+        <div id="wakeStatus" class="wake-status">💡画面常時点灯中</div>
         <div id="coords" class="coord-text">---, ---</div>
         <div style="margin-top:10px;"><span class="count-badge">記録件数: <span id="dataCount">0</span>件</span></div>
     </div>
@@ -77,7 +73,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     // --- 定数設定 ---
-    const GPS_INTERVAL = 30000; // 30秒間隔 (バッテリーと精度のバランス)
+    const GPS_INTERVAL = 30000; // 30秒間隔
     const STORAGE_KEY = 'aiNippoDataV1';
 
     // --- 変数 ---
@@ -85,6 +81,7 @@
     let isTracking = false;
     let map = null;
     let mapLayerGroup = null;
+    let wakeLock = null; // Wake Lock用オブジェクト
 
     // --- PWA更新検知 ---
     if ('serviceWorker' in navigator) {
@@ -106,36 +103,35 @@
         navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
     }
 
-    // --- 初期表示更新 ---
     updateCount();
 
     // --- ボタン操作 ---
     const btnStart = document.getElementById('btnStart');
     const btnStop = document.getElementById('btnStop');
     const statusDiv = document.getElementById('status');
+    const wakeStatusDiv = document.getElementById('wakeStatus');
 
-    btnStart.addEventListener('click', () => {
-        if(!confirm("30秒間隔でGPS記録を開始します。\n現場作業を開始しますか？")) return;
-        startTracking();
-    });
-
-    btnStop.addEventListener('click', () => {
-        if(!confirm("記録を終了しますか？")) return;
-        stopTracking();
-    });
-
-    function startTracking() {
+    btnStart.addEventListener('click', async () => {
+        if(!confirm("GPS記録を開始します。\n※記録中は画面が消えないよう制御されます。\n電源ボタンで画面を消さないでください。")) return;
+        
         isTracking = true;
         btnStart.style.display = 'none';
         btnStop.style.display = 'block';
         statusDiv.innerText = "記録中...";
         statusDiv.style.color = "#2E7D32";
         
-        // 初回即時
+        // Wake Lock取得
+        await requestWakeLock();
+
+        // 初回即時 & 定期実行
         getLocationAndSave();
-        // 定期実行
         trackingIntervalId = setInterval(getLocationAndSave, GPS_INTERVAL);
-    }
+    });
+
+    btnStop.addEventListener('click', () => {
+        if(!confirm("記録を終了しますか？")) return;
+        stopTracking();
+    });
 
     function stopTracking() {
         isTracking = false;
@@ -145,7 +141,44 @@
         statusDiv.innerText = "待機中";
         statusDiv.style.color = "#666";
         document.getElementById('coords').innerText = "---, ---";
+        
+        // Wake Lock解放
+        releaseWakeLock();
     }
+
+    // --- Wake Lock (画面常時点灯) 制御 ---
+    async function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                wakeStatusDiv.style.display = 'block';
+                console.log('Wake Lock is active');
+                
+                // 何かの拍子にロックが外れたら再取得を試みるリスナー
+                wakeLock.addEventListener('release', () => {
+                    console.log('Wake Lock released');
+                    wakeStatusDiv.style.display = 'none';
+                });
+            } catch (err) {
+                console.error(`${err.name}, ${err.message}`);
+                wakeStatusDiv.innerText = "画面ロック非対応";
+            }
+        }
+    }
+
+    async function releaseWakeLock() {
+        if (wakeLock !== null) {
+            await wakeLock.release();
+            wakeLock = null;
+        }
+    }
+
+    // タブ切り替え等で戻ってきた時に再取得
+    document.addEventListener('visibilitychange', async () => {
+        if (wakeLock !== null && document.visibilityState === 'visible') {
+            await requestWakeLock();
+        }
+    });
 
     // --- GPS取得と保存 ---
     function getLocationAndSave() {
@@ -157,18 +190,15 @@
                 const lon = pos.coords.longitude;
                 const now = new Date();
                 
-                // 画面更新
                 statusDiv.innerText = "記録中 (" + now.toLocaleTimeString() + ")";
                 document.getElementById('coords').innerText = lat.toFixed(5) + ", " + lon.toFixed(5);
 
-                // 保存用データ作成 (Colabで扱いやすい形式)
                 const record = {
-                    time: formatTimestamp(now), // YYYY-MM-DD HH:MM:SS
+                    time: formatTimestamp(now),
                     lat: lat,
                     lon: lon
                 };
 
-                // 保存
                 saveData(record);
             },
             err => {
@@ -195,7 +225,6 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         updateCount();
         
-        // 地図が開いていれば更新
         if(document.getElementById('map').style.display === 'block') {
             updateMap(record);
         }
@@ -206,18 +235,16 @@
         document.getElementById('dataCount').innerText = data.length;
     }
 
-    // --- CSV出力 (最重要機能) ---
+    // --- CSV出力 (ファイル名修正版) ---
     document.getElementById('btnCsv').addEventListener('click', () => {
         const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
         if (data.length === 0) return alert("データがありません");
 
-        // CSVヘッダーとデータ
         let csvContent = "time,lat,lon\n";
         data.forEach(row => {
             csvContent += `${row.time},${row.lat},${row.lon}\n`;
         });
 
-        // ファイル名生成 (変更箇所: AI日報-yyyyMMdd-HHmm.csv)
         const now = new Date();
         const y = now.getFullYear();
         const m = ('0' + (now.getMonth() + 1)).slice(-2);
@@ -227,7 +254,6 @@
 
         const fileName = `AI日報-${y}${m}${d}-${H}${M}.csv`;
 
-        // ダウンロード処理
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         if (link.download !== undefined) {
@@ -241,7 +267,6 @@
         }
     });
 
-    // --- データの消去 ---
     document.getElementById('btnClear').addEventListener('click', () => {
         if(confirm("全てのログデータを削除します。本当によろしいですか？")) {
             localStorage.removeItem(STORAGE_KEY);
@@ -251,7 +276,6 @@
         }
     });
 
-    // --- 地図機能 (簡易確認用) ---
     document.getElementById('btnMap').addEventListener('click', () => {
         const mapDiv = document.getElementById('map');
         if (mapDiv.style.display === 'block') {
@@ -264,22 +288,19 @@
 
     function initMap() {
         if (!map) {
-            map = L.map('map').setView([36.06, 136.22], 13); // 福井付近初期値
+            map = L.map('map').setView([36.06, 136.22], 13);
             L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
                 attribution: "&copy; GSI"
             }).addTo(map);
             mapLayerGroup = L.layerGroup().addTo(map);
         }
         
-        // 全データを描画
         const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
         mapLayerGroup.clearLayers();
         
         if (data.length > 0) {
             const latlngs = data.map(d => [d.lat, d.lon]);
-            // 軌跡の線
             L.polyline(latlngs, {color: '#2E7D32', weight: 4}).addTo(mapLayerGroup);
-            // 現在地の丸
             const last = data[data.length - 1];
             L.circleMarker([last.lat, last.lon], {color: 'red', radius: 6}).addTo(mapLayerGroup);
             map.fitBounds(latlngs);
@@ -297,5 +318,3 @@
 
 </body>
 </html>
-
-
