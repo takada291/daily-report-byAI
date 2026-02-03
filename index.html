@@ -112,7 +112,7 @@
     const wakeStatusDiv = document.getElementById('wakeStatus');
 
     btnStart.addEventListener('click', async () => {
-        if(!confirm("GPS記録を開始します。\n※記録中は画面が消えないよう制御されます。\n電源ボタンで画面を消さないでください。")) return;
+        if(!confirm("30秒間隔でGPSを取得し、自動保存を開始します。\n常時アプリを画面表示してください。\nバッテリー残量にご注意ください。")) return;
         
         isTracking = true;
         btnStart.style.display = 'none';
@@ -318,3 +318,4 @@
 
 </body>
 </html>
+
