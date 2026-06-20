@@ -1,4 +1,4 @@
-const CACHE_NAME = 'daily-report-byAI-v2.1.1'; // バージョンアップ
+const CACHE_NAME = 'daily-report-byAI-v2.1.2'; // バージョンアップ
 const urlsToCache = [
   './',
   './index.html',
